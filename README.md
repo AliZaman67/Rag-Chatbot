@@ -1,69 +1,112 @@
 # Nexus — RAG Chatbot
 
-```
+```text
 rag-chatbot/
   frontend/    React + Vite app
   backend/     Express API (holds OpenAI + Groq keys)
   sql/         Supabase schema
 ```
 
-Split on purpose: OpenAI + Groq keys live only in `backend/`, never reach the browser. `frontend/` only ever holds the Supabase anon key (meant to be public, protected by RLS).
+Split on purpose: OpenAI + Groq keys live only in `backend/`, never reach the browser. `frontend/` only holds the Supabase anon key, protected by RLS.
 
-## 1. Supabase project
+## 1. Supabase Setup
 
-1. Create project at supabase.com.
-2. SQL editor → run `sql/schema.sql` — creates `chats`, `messages`, `documents`, `match_documents` fn, RLS.
-3. Auth → Providers → Email enabled. Turn off "Confirm email" for faster local dev.
-4. Settings → API → grab: Project URL, `anon` key, `service_role` key.
+1. Create project at [supabase.com](https://supabase.com).
+2. Open SQL Editor and run `sql/schema.sql`.
+3. Enable Email under Auth → Providers.
+4. Get Project URL, anon key, and service role key from Settings → API.
 
-## 2. Backend
+## 2. Backend Setup
 
-```
+```bash
 cd backend
 npm install
-cp .env.example .env   # fill SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY, GROQ_API_KEY
-npm run dev             # http://localhost:8787
 ```
 
-Routes:
-- `POST /api/chat` — `{ question, history }` → SSE stream of `{token}` chunks, ends with `{done, answer, sources}`
-- `POST /api/ingest` — `{ text, source }` → chunks, embeds, stores into `documents`
-- `GET /health`
+Create `backend/.env` with:
 
-## 3. Frontend
-
+```env
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+OPENAI_API_KEY=your_openai_key
+GROQ_API_KEY=your_groq_key
 ```
+
+Start backend:
+
+```bash
+npm run dev
+```
+
+Backend runs at `http://localhost:8787`.
+
+## 3. Frontend Setup
+
+```bash
 cd frontend
 npm install
-cp .env.example .env   # fill VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_BACKEND_URL
-npm run dev             # http://localhost:5173
 ```
 
-## 4. Load a knowledge base (optional, this is what makes it RAG)
+Create `frontend/.env` with:
 
-Backend must be running:
-
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_BACKEND_URL=http://localhost:8787
 ```
+
+Start frontend:
+
+```bash
+npm run dev
+```
+
+Frontend runs at `http://localhost:5173`.
+
+## 4. Load Knowledge Base (Optional)
+
+With backend running, use:
+
+```bash
 cd backend
 node scripts/ingest.mjs path/to/your-notes.txt
 ```
 
-Skip this and Nexus just answers from general knowledge — degrades gracefully.
+This loads text for retrieval-augmented generation (RAG).
 
-## The 3 keys, where they live now
+## API Routes
 
-| Key | Lives in | Used for |
+- `POST /api/chat` — Sends a question and streams an answer.
+- `POST /api/ingest` — Processes and stores text documents.
+- `GET /health` — Checks backend health.
+
+## API Key Security
+
+| Key | Location | Purpose |
 |---|---|---|
-| Supabase anon key | `frontend/.env` | auth, reading/writing chats — safe to expose, RLS-protected |
-| Supabase service role key | `backend/.env` | server-side writes to `documents`, bypasses RLS — never expose |
-| OpenAI key | `backend/.env` | `text-embedding-3-small` only |
-| Groq key | `backend/.env` | actual chat answers, streamed |
+| Supabase anon key | `frontend/.env` | Client authentication and database access, protected by RLS |
+| Supabase service role key | `backend/.env` | Privileged server-side access; never expose |
+| OpenAI API key | `backend/.env` | Embeddings |
+| Groq API key | `backend/.env` | Chat responses |
 
-## Running both at once
+Never commit `.env` files or publish private API keys.
 
-Two terminals:
+## Run Both Applications
+
+Use two VS Code terminals.
+
+Terminal 1:
+
+```bash
+cd backend
+npm run dev
 ```
-cd backend && npm run dev
-cd frontend && npm run dev
+
+Terminal 2:
+
+```bash
+cd frontend
+npm run dev
 ```
-Both need to be up for chat to answer. Frontend alone still handles auth/history fine — Supabase talks direct.
+
+Both applications must run for chat functionality.
